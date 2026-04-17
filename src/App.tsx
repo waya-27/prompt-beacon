@@ -80,13 +80,13 @@ const THEMES = {
   dark:   { name: "ダーク",  accent: "#f97316", light: "#fb923c", rgb: "249, 115, 22",
              bg: "rgba(11,9,6,0.95)",       panelBg: "rgba(10,8,5,0.97)",
              surface: "rgba(255,255,255,0.05)", border: "rgba(255,255,255,0.08)",
-             text: "#e8ddd4",               subtext: "#6b5e52",
+             text: "#e8ddd4",               subtext: "#a09080",
              inputBg: "rgba(255,255,255,0.04)", inputText: "#e8ddd4",
              isDark: true  },
   brown:  { name: "ブラウン", accent: "#f5f0eb", light: "#ffffff", rgb: "245,240,235",
              bg: "rgba(42,28,18,0.96)",     panelBg: "rgba(38,25,15,0.98)",
              surface: "rgba(255,255,255,0.06)", border: "rgba(255,255,255,0.1)",
-             text: "#f5f0eb",               subtext: "#7a6455",
+             text: "#f5f0eb",               subtext: "#b09878",
              inputBg: "rgba(255,255,255,0.06)", inputText: "#f5f0eb",
              isDark: true  },
 } as const;
@@ -104,7 +104,6 @@ const I18N = {
     appearance:       "Appearance",
     dataSection:      "Data",
     savedLogs:        "Saved logs",
-    exportCsv:        "↓ Export CSV",
     deleteAll:        "Delete all logs",
     deleteConfirm:    "Are you sure?",
     deleteBtn:        "Delete",
@@ -151,7 +150,6 @@ const I18N = {
     appearance:       "外観",
     dataSection:      "データ管理",
     savedLogs:        "保存ログ数",
-    exportCsv:        "↓ CSVエクスポート",
     deleteAll:        "全ログを削除",
     deleteConfirm:    "本当に全削除？",
     deleteBtn:        "削除",
@@ -194,13 +192,6 @@ const I18N = {
 } as const;
 type Lang = keyof typeof I18N;
 
-// ── Status Config ─────────────────────────────────────────────
-const STATUS = {
-  "in-progress": { label: "進行中", color: "#f59e0b" },
-  "done":        { label: "完了",   color: "#34d399" },
-  "failed":      { label: "失敗",   color: "#f87171" },
-} as const;
-
 // ── Helpers ───────────────────────────────────────────────────
 function extractHashtags(text: string): string[] {
   return [...text.matchAll(/#[\w\u3040-\u9FFF-]+/g)].map((m) => m[0]);
@@ -226,9 +217,10 @@ function formatDateTime(iso: string, lang: Lang): string {
 }
 
 // ── Window sizes ──────────────────────────────────────────────
-const BAR_H   = 64;
-const PANEL_H = 540;
-const WIN_W   = 640;
+const BAR_H     = 64;
+const BAR_PAD_V = 20; // top + bottom padding inside bar
+const PANEL_H   = 540;
+const WIN_W     = 640;
 
 // ── Main Component ────────────────────────────────────────────
 export default function App() {
@@ -240,11 +232,8 @@ export default function App() {
   const [hashtagFilter, setHashtagFilter] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editNote, setEditNote]   = useState("");
-  const [saved, setSaved]     = useState(false);
+  const [saved]               = useState(false);
   const [themeKey, setThemeKey] = useState<ThemeKey>("light");
-  const [launchAtLogin, setLaunchAtLogin] = useState(
-    () => localStorage.getItem("launchAtLogin") === "true"
-  );
   const [confirmClear, setConfirmClear] = useState(false);
   const [lang, setLang] = useState<Lang>(
     () => (localStorage.getItem("lang") ?? "en") as Lang
@@ -254,7 +243,7 @@ export default function App() {
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const transitioningRef = useRef(false);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const recognitionRef = useRef<any>(null);
   const [isListening, setIsListening] = useState(false);
 
   // ── Drag handler ──────────────────────────────────────────
@@ -268,6 +257,25 @@ export default function App() {
       await getCurrentWindow().startDragging();
     } catch (_) {}
   };
+
+  // ── Resize bar window to fit textarea content ────────────
+  const resizeBarToContent = useCallback(async (el: HTMLTextAreaElement) => {
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
+    const newH = Math.max(BAR_H, el.scrollHeight + BAR_PAD_V);
+    try {
+      await getCurrentWindow().setSize(new LogicalSize(WIN_W, newH));
+    } catch (_) {}
+  }, []);
+
+  const resetBarSize = useCallback(async () => {
+    if (inputRef.current) {
+      inputRef.current.style.height = "auto";
+    }
+    try {
+      await getCurrentWindow().setSize(new LogicalSize(WIN_W, BAR_H));
+    } catch (_) {}
+  }, []);
 
   // ── Apply theme ─────────────────────────────────────────
   const applyTheme = useCallback((key: ThemeKey) => {
@@ -350,6 +358,7 @@ export default function App() {
           await switchMode("bar");
         } else {
           setInput("");
+          await resetBarSize();
           await getCurrentWindow().hide();
         }
       }
@@ -401,6 +410,7 @@ export default function App() {
     );
 
     setInput("");
+    await resetBarSize();
 
     // DBに保存後、元のアプリにフォーカスを戻してCtrl+Vで貼り付け
     // （ウィンドウを隠す処理もRust側で行う）
@@ -433,12 +443,12 @@ export default function App() {
       return;
     }
 
-    const rec: SpeechRecognition = new SR();
+    const rec = new SR();
     rec.lang = lang === "ja" ? "ja-JP" : "en-US";
     rec.interimResults = false;
     rec.continuous = false;
 
-    rec.onresult = (e: SpeechRecognitionEvent) => {
+    rec.onresult = (e: any) => {
       const transcript = e.results[0][0].transcript;
       setInput((prev) => prev + (prev ? " " : "") + transcript);
     };
@@ -448,23 +458,6 @@ export default function App() {
 
     recognitionRef.current = rec;
     rec.start();
-  };
-
-  // ── Export CSV ─────────────────────────────────────────
-  const exportCsv = async () => {
-    const db = await getDb();
-    const rows = await db.select<Log[]>("SELECT * FROM logs ORDER BY timestamp DESC");
-    const header = "id,timestamp,intent,app_tag,hashtags,result_note\n";
-    const body = rows.map((r) =>
-      `${r.id},"${r.timestamp}","${r.intent.replace(/"/g, '""')}","${r.app_tag}","${r.hashtags.replace(/"/g, '""')}","${r.result_note.replace(/"/g, '""')}"`
-    ).join("\n");
-    const blob = new Blob([header + body], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `prompt_beacon_${new Date().toISOString().split("T")[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
   };
 
   // ── Clear all logs ──────────────────────────────────────
@@ -517,9 +510,7 @@ export default function App() {
           rows={1}
           onChange={(e) => {
             setInput(e.target.value);
-            // auto-resize
-            e.target.style.height = "auto";
-            e.target.style.height = e.target.scrollHeight + "px";
+            resizeBarToContent(e.target);
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
@@ -534,7 +525,7 @@ export default function App() {
           style={{ resize: "none", overflow: "hidden" }}
         />
 
-        <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 4, flexShrink: 0, paddingTop: 18 }}>
           {saved && <span className="saved-indicator">✓</span>}
 
           {hasSpeech && (
@@ -627,9 +618,6 @@ export default function App() {
               </span>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button className="btn-settings-action" onClick={exportCsv}>
-                {t.exportCsv}
-              </button>
               {confirmClear ? (
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                   <span style={{ fontSize: 11, color: "var(--accent)" }}>{t.deleteConfirm}</span>
@@ -721,11 +709,11 @@ export default function App() {
               {t.builtWith}
             </div>
             <div style={{ marginTop: 10, display: "flex", gap: 0, flexWrap: "wrap" }}>
-              <a className="settings-link" href="#">{t.terms}</a>
+              <a className="settings-link" href="https://waya-27.github.io/privacy_policy_site/beacon/terms.html" target="_blank" rel="noopener noreferrer">{t.terms}</a>
               <span style={{ color: "var(--subtext)", margin: "0 8px", opacity: 0.4 }}>·</span>
-              <a className="settings-link" href="#">{t.privacy}</a>
+              <a className="settings-link" href="https://waya-27.github.io/privacy_policy_site/beacon/privacy.html" target="_blank" rel="noopener noreferrer">{t.privacy}</a>
               <span style={{ color: "var(--subtext)", margin: "0 8px", opacity: 0.4 }}>·</span>
-              <a className="settings-link" href="#">{t.feedback}</a>
+              <a className="settings-link" href="#" target="_blank" rel="noopener noreferrer">{t.feedback}</a>
             </div>
           </div>
 

@@ -51,9 +51,9 @@ textarea {
 /* ── Bar Mode ──────────────────────────────────────────────── */
 .bar-root {
   width: 640px;
-  height: 64px;
+  min-height: 64px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   padding: 0 14px 0 16px;
   background: var(--bg);
@@ -70,13 +70,14 @@ textarea {
   flex-shrink: 0;
   line-height: 1;
   opacity: 0.9;
+  padding-top: 21px;
 }
 
 .bar-input {
   flex: 1;
   min-width: 0;
   min-height: 22px;
-  max-height: 120px;
+  max-height: 400px;
   background: transparent;
   border: none;
   outline: none;
@@ -86,7 +87,7 @@ textarea {
   letter-spacing: 0.01em;
   caret-color: var(--accent);
   line-height: 1.5;
-  padding: 0;
+  padding: 21px 0 21px;
   font-family: inherit;
 }
 
@@ -342,12 +343,14 @@ textarea {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 5px;
-  color: var(--subtext);
+  color: var(--text);
   font-size: 11px;
   padding: 3px 7px;
   outline: none;
   cursor: pointer;
   font-family: inherit;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .btn-save {
@@ -405,8 +408,8 @@ textarea {
 }
 
 .icon-btn.danger:hover {
-  color: #f87171;
-  background: rgba(248, 113, 113, 0.12);
+  color: #e05050;
+  background: rgba(224, 80, 80, 0.12);
 }
 
 /* App tag badge (bar mode) */
@@ -427,7 +430,7 @@ textarea {
 .saved-indicator {
   font-size: 11px;
   font-weight: 600;
-  color: #34d399;
+  color: var(--accent);
   flex-shrink: 0;
   animation: fade-in 0.15s ease;
 }
@@ -638,7 +641,7 @@ textarea {
 
 .settings-toggle.on .toggle-knob {
   transform: translateX(16px);
-  background: white;
+  background: var(--text);
 }
 
 /* Settings row sub-label */
@@ -700,7 +703,7 @@ textarea {
 }
 
 .theme-card.selected {
-  box-shadow: 0 0 0 2px rgba(128, 128, 128, 0.5) inset;
+  box-shadow: 0 0 0 2px var(--accent) inset;
 }
 
 .theme-card-preview {
